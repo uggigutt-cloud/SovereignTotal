@@ -1,0 +1,23 @@
+{
+  "name": "sovereign-modules",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Sovereign legal case analysis engine — TypeScript + PGLite",
+  "exports": "./index.ts",
+  "scripts": {
+    "build": "tsc",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "@vitest/coverage-v8": "^1.6.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}
