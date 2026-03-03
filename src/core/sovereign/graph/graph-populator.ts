@@ -28,6 +28,8 @@ export interface PopulatorSummary {
   counterNodes: number;
   containsEdges: number;
   countersEdges: number;
+  assertsEdges: number;
+  derivesFromEdges: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -99,6 +101,8 @@ export async function populateCaseGraph(
   let counterNodes = 0;
   let containsEdges = 0;
   let countersEdges = 0;
+  let assertsEdges = 0;
+  let derivesFromEdges = 0;
 
   // ------------------------------------------------------------------
   // 1. DOCUMENT nodes
@@ -265,6 +269,71 @@ export async function populateCaseGraph(
     // counters table absent (pre-v3 schema) — silently skip
   }
 
+  // ------------------------------------------------------------------
+  // 6. ASSERTS edges from claim_excerpts join table (P1 pipeline)
+  //    excerpt_node → claim_node  (this excerpt supports this claim)
+  //    Gracefully skips if claim_excerpts table is absent (pre-v5 schema).
+  // ------------------------------------------------------------------
+  try {
+    const ceRes = await db.query(
+      `
+      SELECT ce.claim_id, ce.excerpt_id, ce.relevance
+      FROM claim_excerpts ce
+      JOIN claims c ON c.claim_id = ce.claim_id
+      WHERE c.case_id = $1
+      `,
+      [caseId]
+    );
+
+    for (const r of ceRes.rows) {
+      const claimId = asText(r["claim_id"]);
+      const excerptId = asText(r["excerpt_id"]);
+      const relevance = asNumber(r["relevance"]) ?? 1.0;
+      if (!claimId || !excerptId) continue;
+
+      const excerptNodeId = stableId("node", [caseId, "EXCERPT", excerptId]);
+      const claimNodeId   = stableId("node", [caseId, "CLAIM",  claimId]);
+      const edgeId = stableId("edge", [caseId, "ASSERTS", excerptNodeId, claimNodeId]);
+
+      await upsertEdge(db, edgeId, caseId, "ASSERTS", excerptNodeId, claimNodeId, relevance, {});
+      assertsEdges++;
+    }
+  } catch {
+    // claim_excerpts table absent (pre-v5 schema) — silently skip
+  }
+
+  // ------------------------------------------------------------------
+  // 7. DERIVES_FROM edges from claim_derives join table (P1 pipeline)
+  //    child_claim_node → parent_claim_node
+  //    Gracefully skips if claim_derives table is absent (pre-v5 schema).
+  // ------------------------------------------------------------------
+  try {
+    const cdRes = await db.query(
+      `
+      SELECT cd.child_claim_id, cd.parent_claim_id
+      FROM claim_derives cd
+      JOIN claims c ON c.claim_id = cd.child_claim_id
+      WHERE c.case_id = $1
+      `,
+      [caseId]
+    );
+
+    for (const r of cdRes.rows) {
+      const childId  = asText(r["child_claim_id"]);
+      const parentId = asText(r["parent_claim_id"]);
+      if (!childId || !parentId) continue;
+
+      const childNodeId  = stableId("node", [caseId, "CLAIM", childId]);
+      const parentNodeId = stableId("node", [caseId, "CLAIM", parentId]);
+      const edgeId = stableId("edge", [caseId, "DERIVES_FROM", childNodeId, parentNodeId]);
+
+      await upsertEdge(db, edgeId, caseId, "DERIVES_FROM", childNodeId, parentNodeId, 1.0, {});
+      derivesFromEdges++;
+    }
+  } catch {
+    // claim_derives table absent (pre-v5 schema) — silently skip
+  }
+
   return {
     caseId,
     documentNodes,
@@ -273,6 +342,8 @@ export async function populateCaseGraph(
     decisionNodes,
     counterNodes,
     containsEdges,
-    countersEdges
+    countersEdges,
+    assertsEdges,
+    derivesFromEdges
   };
 }

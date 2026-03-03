@@ -57,67 +57,48 @@ export default function IngestPage() {
         const activeFiles = files.filter(f => selectedFiles.has(f.name));
         if (activeFiles.length === 0) return;
         setStatus("uploading");
+        setProgress(0);
 
-        // Prepare dummy text reading for the API (since we can't easily parse PDFs client-side without a library here)
-        // We will send a generic text chunk summarizing the files to the Vertex AI route
-        let documentTextContext = `Følgende dokumenter er lagt ved saken:\n`;
-        activeFiles.forEach(f => {
-            documentTextContext += `- ${f.name} (${Math.round(f.size / 1024)} KB)\n`;
-        });
-        documentTextContext += `Generer et representativt sett med bevis og vedtak (Nodes og Edges) basert på en typisk barnevernssak med disse dokumentene.`;
-
-        // Simulate GCS Upload Animation
+        // Animate progress bar while the real API call runs
         let p = 0;
-        const uploadInterval = setInterval(() => {
-            p += 25;
-            setProgress(Math.min(p, 100));
-            if (p >= 100) {
-                clearInterval(uploadInterval);
-                setStatus("sorting");
+        const tick = setInterval(() => {
+            p = Math.min(p + 10, 85);
+            setProgress(p);
+            if (p >= 50) setStatus("sorting");
+        }, 400);
 
-                // Start Actual API Call in parallel with sorting animation
-                fetch('/api/ingest', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        documentText: documentTextContext,
-                        caseId: caseId,
-                        title: caseTitle
-                    })
-                }).then(res => res.json()).then(data => {
-                    if (data.success) {
-                        setStatus("success");
-                    } else {
-                        alert("API Feil: " + data.error);
-                        setStatus("idle");
+        // Process each selected file sequentially via the real API
+        const results: Array<{ file: string; caseId: string; defectCount: number }> = [];
+
+        for (const file of activeFiles) {
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("caseId", caseId);
+            formData.append("title", caseTitle || file.name);
+
+            try {
+                const res = await fetch("/api/ingest", { method: "POST", body: formData });
+                const data = await res.json();
+                if (data.success) {
+                    results.push({ file: file.name, caseId: data.caseId, defectCount: data.ruleEngine?.defectCount ?? 0 });
+                    // Update sorting stage counts from graph data
+                    if (data.extracted) {
+                        setStageCounts(prev => ({ ...prev, A: prev.A + (data.extracted.claims ?? 0) }));
                     }
-                }).catch(() => {
-                    alert("Network Error");
-                    setStatus("idle");
-                });
-
-                // Simulate Stage A-G Sorting numbers rolling
-                let count = 0;
-                const totalDocs = Math.max(activeFiles.length, 14);
-
-                const sortingInterval = setInterval(() => {
-                    count += 2;
-                    const stages: (keyof typeof stageCounts)[] = ["A", "B", "C", "D", "E", "F", "G"];
-                    setStageCounts(prev => {
-                        const nextState = { ...prev };
-                        nextState[stages[Math.floor(Math.random() * 4)]] += 1;
-                        nextState[stages[Math.floor(Math.random() * 7)]] += 1;
-                        return nextState;
-                    });
-
-                    if (count >= totalDocs) {
-                        clearInterval(sortingInterval);
-                        setStatus("analyzing");
-                    }
-                }, 150);
+                } else {
+                    console.error("Ingest feil:", data.error);
+                }
+            } catch (e) {
+                console.error("Nettverksfeil for fil:", file.name, e);
             }
-        }, 300);
-    };
+        }
+
+        clearInterval(tick);
+        setProgress(100);
+        setStatus(results.length > 0 ? "success" : "idle");
+        if (results.length === 0) {
+            alert("Ingen filer ble behandlet. Sjekk at filene er gyldige PDF/DOCX/bilder.");
+        }
 
     const totalBytes = files.filter(f => selectedFiles.has(f.name)).reduce((acc, file) => acc + file.size, 0);
     const totalMB = (totalBytes / 1024 / 1024).toFixed(2);
@@ -148,7 +129,7 @@ export default function IngestPage() {
 
                                     <label className="cursor-pointer px-6 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-lg font-medium transition-colors border border-brand-500/50">
                                         Velg Filer / Mappe
-                                        <input type="file" multiple className="hidden" onChange={handleFileInput} />
+                                        <input type="file" multiple accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.webp,.txt" className="hidden" onChange={handleFileInput} />
                                     </label>
                                 </>
                             ) : (

@@ -21,12 +21,14 @@ export async function getServerDb(): Promise<PgLiteLike> {
         const v2 = fs.readFileSync(path.join(schemaDir, 'sovereign-schema-v2.sql'), 'utf-8');
         const v3 = fs.readFileSync(path.join(schemaDir, 'sovereign-schema-v3.sql'), 'utf-8');
         const v4 = fs.readFileSync(path.join(schemaDir, 'sovereign-schema-v4.sql'), 'utf-8');
+        const v5 = fs.readFileSync(path.join(schemaDir, 'sovereign-schema-v5.sql'), 'utf-8');
 
         dbInstance = await initSovereignDb(v1, {
-            schemaVersion: 4,
+            schemaVersion: 5,
             schemaSqlV2: v2,
             schemaSqlV3: v3,
             schemaSqlV4: v4,
+            schemaSqlV5: v5,
         });
 
         console.log("✅ Sovereign DB Instance Initialised Server-Side.");

@@ -24,6 +24,8 @@ export interface DbInitOptions {
   schemaSqlV3?: string;
   /** Full contents of sovereign-schema-v4.sql (required when schemaVersion >= 4). */
   schemaSqlV4?: string;
+  /** Full contents of sovereign-schema-v5.sql (required when schemaVersion >= 5). */
+  schemaSqlV5?: string;
 }
 
 /**
@@ -59,6 +61,7 @@ export async function initSovereignDb(
       if ((opts.schemaVersion ?? 1) >= 2 && opts.schemaSqlV2) await initSchema(pgClient, opts.schemaSqlV2);
       if ((opts.schemaVersion ?? 1) >= 3 && opts.schemaSqlV3) await initSchema(pgClient, opts.schemaSqlV3);
       if ((opts.schemaVersion ?? 1) >= 4 && opts.schemaSqlV4) await initSchema(pgClient, opts.schemaSqlV4);
+      if ((opts.schemaVersion ?? 1) >= 5 && opts.schemaSqlV5) await initSchema(pgClient, opts.schemaSqlV5);
 
       return pgClient as PgLiteLike;
     } catch (e) {
@@ -87,6 +90,10 @@ export async function initSovereignDb(
 
   if ((opts.schemaVersion ?? 1) >= 4 && opts.schemaSqlV4) {
     await initSchema(db as unknown as ExecPgLike, opts.schemaSqlV4);
+  }
+
+  if ((opts.schemaVersion ?? 1) >= 5 && opts.schemaSqlV5) {
+    await initSchema(db as unknown as ExecPgLike, opts.schemaSqlV5);
   }
 
   return db as unknown as PgLiteLike;

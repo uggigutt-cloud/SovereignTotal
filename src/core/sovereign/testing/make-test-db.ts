@@ -25,6 +25,10 @@ const SCHEMA_V4_SQL = readFileSync(
   join(__dirname, "../schema/sovereign-schema-v4.sql"),
   "utf-8"
 );
+const SCHEMA_V5_SQL = readFileSync(
+  join(__dirname, "../schema/sovereign-schema-v5.sql"),
+  "utf-8"
+);
 
 /** PGLite with exec exposed for schema initialization */
 interface TestDb extends PgLiteLike {
@@ -43,5 +47,6 @@ export async function makeTestDb(): Promise<TestDb> {
   await db.exec(SCHEMA_V2_SQL);
   await db.exec(SCHEMA_V3_SQL);
   await db.exec(SCHEMA_V4_SQL);
+  await db.exec(SCHEMA_V5_SQL);
   return db as unknown as TestDb;
 }

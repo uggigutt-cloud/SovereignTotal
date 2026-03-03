@@ -1,0 +1,63 @@
+steps:
+  # ─── Step 1: Install deps and run Vitest unit + integration tests ────────────
+  - name: 'node:20-alpine'
+    id: 'test'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        cd /workspace
+        npm ci
+        cd src/core/sovereign
+        npm ci
+        npm test
+
+  # ─── Step 2: Build Docker image ──────────────────────────────────────────────
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build'
+    waitFor: ['test']
+    args:
+      - 'build'
+      - '-t'
+      - 'europe-west4-docker.pkg.dev/$PROJECT_ID/sovereign/app:$COMMIT_SHA'
+      - '-t'
+      - 'europe-west4-docker.pkg.dev/$PROJECT_ID/sovereign/app:latest'
+      - '.'
+
+  # ─── Step 3: Push image to Artifact Registry ─────────────────────────────────
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push'
+    waitFor: ['build']
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'europe-west4-docker.pkg.dev/$PROJECT_ID/sovereign/app'
+
+  # ─── Step 4: Deploy to Cloud Run (europe-west4) ───────────────────────────────
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'deploy'
+    waitFor: ['push']
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'sovereign-app'
+      - '--image=europe-west4-docker.pkg.dev/$PROJECT_ID/sovereign/app:$COMMIT_SHA'
+      - '--region=europe-west4'
+      - '--platform=managed'
+      - '--memory=2Gi'
+      - '--cpu=2'
+      - '--min-instances=1'
+      - '--max-instances=10'
+      - '--concurrency=80'
+      - '--set-env-vars=USE_VERTEX_AI=true,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=europe-west4,NEXT_TELEMETRY_DISABLED=1'
+      - '--update-secrets=DATABASE_URL=sovereign-db-url:latest,NEXTAUTH_SECRET=sovereign-nextauth-secret:latest,GOOGLE_CLIENT_ID=sovereign-google-oauth-id:latest,GOOGLE_CLIENT_SECRET=sovereign-google-oauth-secret:latest'
+      - '--allow-unauthenticated'
+
+substitutions:
+  _SERVICE_NAME: sovereign-app
+  _REGION: europe-west4
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'

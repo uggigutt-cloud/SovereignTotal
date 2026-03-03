@@ -76,7 +76,7 @@ export default function CasesDashboard() {
                         </div>
                     ) : (
                         cases.map((c) => (
-                            <Link href="/profile" key={c.id} className="group glass-panel p-6 rounded-xl border border-white/5 hover:border-brand-500/50 transition-all cursor-pointer min-h-[160px] flex flex-col justify-between relative overflow-hidden">
+                            <Link href={`/portal?caseId=${encodeURIComponent(c.id)}`} key={c.id} className="group glass-panel p-6 rounded-xl border border-white/5 hover:border-brand-500/50 transition-all cursor-pointer min-h-[160px] flex flex-col justify-between relative overflow-hidden">
 
                                 {/* Background glow on hover */}
                                 <div className="absolute inset-0 bg-brand-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
