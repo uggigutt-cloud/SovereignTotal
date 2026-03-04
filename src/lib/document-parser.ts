@@ -62,7 +62,9 @@ export async function extractText(
 async function parsePdf(buffer: Buffer): Promise<ParsedDocument> {
   try {
     // Dynamic import avoids bundling pdf-parse in client-side chunks
-    const pdfParse = (await import("pdf-parse")).default;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mod = await import("pdf-parse") as any;
+    const pdfParse = mod.default ?? mod;
     const result = await pdfParse(buffer);
     const text = result.text?.trim() ?? "";
 
