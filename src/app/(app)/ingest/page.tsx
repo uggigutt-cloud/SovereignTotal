@@ -99,6 +99,7 @@ export default function IngestPage() {
         if (results.length === 0) {
             alert("Ingen filer ble behandlet. Sjekk at filene er gyldige PDF/DOCX/bilder.");
         }
+    };
 
     const totalBytes = files.filter(f => selectedFiles.has(f.name)).reduce((acc, file) => acc + file.size, 0);
     const totalMB = (totalBytes / 1024 / 1024).toFixed(2);
