@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+*.md
+.env*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+coverage
+.nyc_output
+src/core/sovereign/node_modules
