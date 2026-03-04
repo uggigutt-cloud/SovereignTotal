@@ -5,12 +5,36 @@ import { MoveRight, Shield, BrainCircuit, Activity } from "lucide-react";
 import { motion } from "framer-motion";
 import { signIn, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
-export default function LandingPage() {
+function SignInButton() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/cases";
 
+  if (session) {
+    return (
+      <Link href={callbackUrl} className="group relative px-8 py-4 bg-brand-500 hover:bg-brand-400 text-white font-semibold rounded-lg shadow-[0_0_20px_rgba(14,165,233,0.3)] transition-all flex items-center gap-2 overflow-hidden">
+        <span className="relative z-10">Åpne Sovereign Portal</span>
+        <MoveRight size={18} className="relative z-10 group-hover:translate-x-1 transition-transform" />
+        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out" />
+      </Link>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => signIn("google", { callbackUrl })}
+      className="group relative px-8 py-4 bg-brand-500 hover:bg-brand-400 text-white font-semibold rounded-lg shadow-[0_0_20px_rgba(14,165,233,0.3)] transition-all flex items-center gap-2 overflow-hidden"
+    >
+      <span className="relative z-10">Logg inn med Google</span>
+      <MoveRight size={18} className="relative z-10 group-hover:translate-x-1 transition-transform" />
+      <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out" />
+    </button>
+  );
+}
+
+export default function LandingPage() {
   return (
     <div className="min-h-screen bg-dark-900 flex flex-col items-center justify-center relative overflow-hidden">
       {/* Background radial gradient */}
@@ -42,22 +66,13 @@ export default function LandingPage() {
           transition={{ delay: 0.4, duration: 1 }}
           className="flex flex-col sm:flex-row gap-6 justify-center items-center mt-8"
         >
-          {session ? (
-            <Link href="/cases" className="group relative px-8 py-4 bg-brand-500 hover:bg-brand-400 text-white font-semibold rounded-lg shadow-[0_0_20px_rgba(14,165,233,0.3)] transition-all flex items-center gap-2 overflow-hidden">
-              <span className="relative z-10">Åpne Sovereign Portal</span>
-              <MoveRight size={18} className="relative z-10 group-hover:translate-x-1 transition-transform" />
-              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out" />
-            </Link>
-          ) : (
-            <button
-              onClick={() => signIn("google", { callbackUrl })}
-              className="group relative px-8 py-4 bg-brand-500 hover:bg-brand-400 text-white font-semibold rounded-lg shadow-[0_0_20px_rgba(14,165,233,0.3)] transition-all flex items-center gap-2 overflow-hidden"
-            >
-              <span className="relative z-10">Logg inn med Google</span>
-              <MoveRight size={18} className="relative z-10 group-hover:translate-x-1 transition-transform" />
-              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out" />
+          <Suspense fallback={
+            <button disabled className="px-8 py-4 bg-brand-500/50 text-white font-semibold rounded-lg flex items-center gap-2">
+              <span>Logg inn med Google</span>
             </button>
-          )}
+          }>
+            <SignInButton />
+          </Suspense>
 
           <Link href="/workbench" className="px-8 py-4 glass-panel text-slate-200 hover:text-white hover:bg-white/10 font-semibold rounded-lg transition-all flex items-center gap-2">
             <Activity size={18} />
