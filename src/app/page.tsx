@@ -7,6 +7,29 @@ import { signIn, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
+function WorkbenchButton() {
+  const { data: session } = useSession();
+
+  if (session) {
+    return (
+      <Link href="/workbench" className="px-8 py-4 glass-panel text-slate-200 hover:text-white hover:bg-white/10 font-semibold rounded-lg transition-all flex items-center gap-2">
+        <Activity size={18} />
+        Launch Palantir Workbench
+      </Link>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => signIn("google", { callbackUrl: "/workbench" })}
+      className="px-8 py-4 glass-panel text-slate-200 hover:text-white hover:bg-white/10 font-semibold rounded-lg transition-all flex items-center gap-2"
+    >
+      <Activity size={18} />
+      Launch Palantir Workbench
+    </button>
+  );
+}
+
 function SignInButton() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
@@ -74,10 +97,14 @@ export default function LandingPage() {
             <SignInButton />
           </Suspense>
 
-          <Link href="/workbench" className="px-8 py-4 glass-panel text-slate-200 hover:text-white hover:bg-white/10 font-semibold rounded-lg transition-all flex items-center gap-2">
-            <Activity size={18} />
-            Launch Palantir Workbench
-          </Link>
+          <Suspense fallback={
+            <button disabled className="px-8 py-4 glass-panel text-slate-400 font-semibold rounded-lg flex items-center gap-2">
+              <Activity size={18} />
+              Launch Palantir Workbench
+            </button>
+          }>
+            <WorkbenchButton />
+          </Suspense>
         </motion.div>
 
         {/* Feature grid */}
