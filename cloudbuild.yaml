@@ -50,7 +50,7 @@ steps:
       - '--min-instances=1'
       - '--max-instances=10'
       - '--concurrency=80'
-      - '--set-env-vars=USE_VERTEX_AI=true,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=europe-west4,NEXT_TELEMETRY_DISABLED=1'
+      - '--set-env-vars=USE_VERTEX_AI=true,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=europe-west4,NEXT_TELEMETRY_DISABLED=1,AUTH_TRUST_HOST=true'
       - '--update-secrets=DATABASE_URL=sovereign-db-url:latest,NEXTAUTH_SECRET=sovereign-nextauth-secret:latest,GOOGLE_CLIENT_ID=sovereign-google-client-id:latest,GOOGLE_CLIENT_SECRET=sovereign-google-client-secret:latest'
       - '--allow-unauthenticated'
 
