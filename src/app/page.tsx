@@ -4,9 +4,12 @@ import Link from "next/link";
 import { MoveRight, Shield, BrainCircuit, Activity } from "lucide-react";
 import { motion } from "framer-motion";
 import { signIn, useSession } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 
 export default function LandingPage() {
   const { data: session } = useSession();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl") || "/cases";
 
   return (
     <div className="min-h-screen bg-dark-900 flex flex-col items-center justify-center relative overflow-hidden">
@@ -47,7 +50,7 @@ export default function LandingPage() {
             </Link>
           ) : (
             <button
-              onClick={() => signIn("google", { callbackUrl: "/cases" })}
+              onClick={() => signIn("google", { callbackUrl })}
               className="group relative px-8 py-4 bg-brand-500 hover:bg-brand-400 text-white font-semibold rounded-lg shadow-[0_0_20px_rgba(14,165,233,0.3)] transition-all flex items-center gap-2 overflow-hidden"
             >
               <span className="relative z-10">Logg inn med Google</span>
