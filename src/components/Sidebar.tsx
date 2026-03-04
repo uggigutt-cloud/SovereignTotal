@@ -1,13 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { LayoutDashboard, Network, FolderPlus, Settings, ShieldAlert, ChevronLeft, ChevronRight, Menu, UserSquare2, Link2 } from "lucide-react";
-import { useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { LayoutDashboard, Network, FolderPlus, ShieldAlert, ChevronLeft, Menu, UserSquare2, Link2 } from "lucide-react";
+import { useState, Suspense } from "react";
 
-export function Sidebar() {
+// Case-scoped pages that should carry the caseId query param
+const CASE_PAGES = new Set(["/portal", "/evidence", "/profile"]);
+
+function SidebarInner() {
     const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const caseId = searchParams.get("caseId");
     const [collapsed, setCollapsed] = useState(false);
+
+    function hrefFor(base: string) {
+        if (CASE_PAGES.has(base) && caseId) return `${base}?caseId=${encodeURIComponent(caseId)}`;
+        return base;
+    }
 
     const navItems = [
         { name: "Mine Saker", href: "/cases", icon: FolderPlus },
@@ -16,7 +26,6 @@ export function Sidebar() {
         { name: "Nexus Tidslinje", href: "/portal", icon: LayoutDashboard },
         { name: "Kausalitetskjede", href: "/workbench", icon: Network },
         { name: "Beviskjede", href: "/evidence", icon: Link2 },
-        { name: "Innstillinger", href: "/settings", icon: Settings },
     ];
 
     return (
@@ -46,7 +55,7 @@ export function Sidebar() {
                     return (
                         <Link
                             key={item.href}
-                            href={item.href}
+                            href={hrefFor(item.href)}
                             className={`flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors ${isActive
                                 ? "bg-brand-500/20 text-brand-400 border border-brand-500/30"
                                 : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
@@ -73,5 +82,13 @@ export function Sidebar() {
                 )}
             </div>
         </div>
+    );
+}
+
+export function Sidebar() {
+    return (
+        <Suspense fallback={<div className="w-64 h-screen bg-dark-900 border-r border-white/10" />}>
+            <SidebarInner />
+        </Suspense>
     );
 }

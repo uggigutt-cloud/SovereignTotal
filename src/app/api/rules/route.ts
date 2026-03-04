@@ -60,7 +60,8 @@ export async function POST(req: Request) {
       `SELECT r.remedy_id, r.name, r.description, r.typical_deadline, r.jurisdiction, dr.defect_id
        FROM defect_remedies dr
        JOIN remedies r ON r.remedy_id = dr.remedy_id
-       WHERE dr.case_id = $1
+       JOIN defects d ON d.defect_id = dr.defect_id
+       WHERE d.case_id = $1
        ORDER BY dr.defect_id, r.remedy_id`,
       [caseId]
     );
