@@ -74,7 +74,7 @@ INSTRUCTIONS:
 
         // 4. Create Chat Session
         const chat = ai.chats.create({
-            model: 'gemini-1.5-pro',
+            model: 'gemini-2.0-flash-001',
             config: {
                 systemInstruction: systemPrompt
             }

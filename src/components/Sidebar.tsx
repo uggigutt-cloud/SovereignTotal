@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { LayoutDashboard, Network, FolderPlus, ShieldAlert, ChevronLeft, Menu, UserSquare2, Link2 } from "lucide-react";
+import { LayoutDashboard, Network, FolderPlus, ShieldAlert, ChevronLeft, Menu, UserSquare2, Link2, BookOpen } from "lucide-react";
 import { useState, Suspense } from "react";
 
 // Case-scoped pages that should carry the caseId query param
-const CASE_PAGES = new Set(["/portal", "/evidence", "/profile"]);
+const CASE_PAGES = new Set(["/portal", "/evidence", "/profile", "/documents", "/workbench"]);
 
 function SidebarInner() {
     const pathname = usePathname();
@@ -22,10 +22,11 @@ function SidebarInner() {
     const navItems = [
         { name: "Mine Saker", href: "/cases", icon: FolderPlus },
         { name: "Ny Sak / Opplastning", href: "/ingest", icon: FolderPlus },
-        { name: "Saksprofil", href: "/profile", icon: UserSquare2 },
+        { name: "Dokumentvisning", href: "/documents", icon: BookOpen },
         { name: "Nexus Tidslinje", href: "/portal", icon: LayoutDashboard },
         { name: "Kausalitetskjede", href: "/workbench", icon: Network },
         { name: "Beviskjede", href: "/evidence", icon: Link2 },
+        { name: "Saksprofil", href: "/profile", icon: UserSquare2 },
     ];
 
     return (

@@ -4,7 +4,7 @@ import { getServerDb } from '@/core/server-db';
 export async function GET() {
     try {
         const db = await getServerDb();
-        const res = await db.query(`SELECT case_id as id, title as name, 'active' as status, NOW() as "lastActive" FROM cases ORDER BY "lastActive" DESC`);
+        const res = await db.query(`SELECT case_id as id, title as name, 'active' as status, created_at as "lastActive" FROM cases ORDER BY created_at DESC`);
 
         return NextResponse.json({ success: true, cases: res.rows });
     } catch (error: unknown) {

@@ -1,203 +1,390 @@
 "use client";
 
-import { Network, Bot, Send, Search, Filter, ShieldAlert } from "lucide-react";
-import { useState } from "react";
+import { Network, Bot, Send, Loader2, ShieldAlert, AlertTriangle, FileText, GitBranch } from "lucide-react";
+import { useState, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 
-export default function PalantirWorkbench() {
-    const [chatMessage, setChatMessage] = useState("");
-    const [isLoading, setIsLoading] = useState(false);
-    const [chatLog, setChatLog] = useState<{ role: string, text: string }[]>([
-        { role: "agent", text: "Sovereign Neural Core online. The causality chain for the active case is loaded. Ask me to draft cross-examination questions or analyze specific defects." }
-    ]);
+interface GraphNode {
+  id: string;
+  type: string;
+  type_nb: string;
+  stage: string | null;
+  label: string;
+  attrs: Record<string, unknown>;
+}
 
-    const handleSendMessage = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!chatMessage.trim() || isLoading) return;
+interface GraphEdge {
+  id: string;
+  type: string;
+  from: string;
+  to: string;
+  weight: number;
+}
 
-        const userText = chatMessage;
-        setChatLog(prev => [...prev, { role: "user", text: userText }]);
-        setChatMessage("");
-        setIsLoading(true);
+interface Defect {
+  defect_id: string;
+  category_nb: string;
+  tier: string;
+  tier_nb: string;
+  stage_nb: string | null;
+  title: string;
+  description: string;
+  confidence: number;
+}
 
-        try {
-            // We pass a dummy caseId for now until Phase 9 (Case Selection) is done, 
-            // but the API will still try to pull from Postgres if it exists.
-            const response = await fetch('/api/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    message: userText,
-                    caseId: 'B-2026-441-A', // Default mock case ID
-                    history: chatLog.map(m => ({ role: m.role, content: m.text }))
-                })
-            });
+function WorkbenchContent() {
+  const searchParams = useSearchParams();
+  const caseId = searchParams.get("caseId");
 
-            const data = await response.json();
+  const [nodes, setNodes] = useState<GraphNode[]>([]);
+  const [edges, setEdges] = useState<GraphEdge[]>([]);
+  const [defects, setDefects] = useState<Defect[]>([]);
+  const [graphLoading, setGraphLoading] = useState(false);
 
-            if (data.reply) {
-                setChatLog(prev => [...prev, { role: "agent", text: data.reply }]);
-            } else {
-                setChatLog(prev => [...prev, { role: "agent", text: "⚠️ Systemfeil: " + (data.error || "Kunne ikke nå Neural Core.") }]);
-            }
-        } catch (error) {
-            setChatLog(prev => [...prev, { role: "agent", text: "⚠️ Nettverksfeil: Klarte ikke kontakte serveren." }]);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+  const [chatMessage, setChatMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [chatLog, setChatLog] = useState<{ role: string; text: string }[]>([
+    {
+      role: "agent",
+      text: "Sovereign Neural Core online. Velg en sak fra Saksoversikt for å laste inn saksdata, og still spørsmål om dokumentene eller funnene.",
+    },
+  ]);
 
-    return (
-        <div className="h-full flex flex-col bg-dark-900 text-slate-200 font-sans overflow-hidden">
+  const fetchData = useCallback(async () => {
+    if (!caseId) return;
+    setGraphLoading(true);
+    try {
+      const [graphRes, findRes] = await Promise.all([
+        fetch(`/api/graph?caseId=${encodeURIComponent(caseId)}`),
+        fetch(`/api/findings?caseId=${encodeURIComponent(caseId)}`),
+      ]);
+      const [graphJson, findJson] = await Promise.all([graphRes.json(), findRes.json()]);
+      if (graphJson.success) {
+        setNodes(graphJson.nodes);
+        setEdges(graphJson.edges);
+      }
+      if (findJson.success) {
+        setDefects(findJson.defects);
+      }
+    } finally {
+      setGraphLoading(false);
+    }
+  }, [caseId]);
 
-            {/* Top Navigation Bar */}
-            <header className="h-14 border-b border-white/10 flex items-center justify-between px-4 bg-dark-800 shrink-0">
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2 text-brand-500 font-bold bg-brand-900/40 px-3 py-1 rounded border border-brand-500/20">
-                        <Network size={16} />
-                        Sovereign Workbench
-                    </div>
-                    <span className="text-xs font-mono text-slate-500">SESSION: 0x9F4A2</span>
-                </div>
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 px-3 py-1 rounded bg-black/40 border border-white/5">
-                        <Search size={14} className="text-slate-500" />
-                        <input type="text" placeholder="Search nodes..." className="bg-transparent border-none outline-none text-xs w-48 text-white placeholder:text-slate-600" />
-                    </div>
-                    <button title="Filter nodes" className="p-1.5 rounded hover:bg-white/10 text-slate-400">
-                        <Filter size={16} />
-                    </button>
-                </div>
-            </header>
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatMessage.trim() || isLoading) return;
 
-            {/* Main Workspace */}
-            <div className="flex-1 flex overflow-hidden">
+    const userText = chatMessage;
+    setChatLog((prev) => [...prev, { role: "user", text: userText }]);
+    setChatMessage("");
+    setIsLoading(true);
 
-                {/* Left Pane: Topological Lattice (Graph) & Thematic Overlays */}
-                <div className="flex-1 relative bg-[#0b0c10] overflow-hidden flex flex-col">
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: userText,
+          caseId: caseId || null,
+          history: chatLog.map((m) => ({ role: m.role, content: m.text })),
+        }),
+      });
 
-                    {/* Thematic Dashboard Cards (Floating Top Left) */}
-                    <div className="absolute top-4 left-4 z-20 flex flex-col gap-3">
-                        <div className="glass-panel w-72 p-4 rounded-xl border border-white/5 bg-dark-900/60 backdrop-blur-md">
-                            <h3 className="text-xs font-mono text-slate-400 uppercase tracking-widest mb-3">Defect Summary Panel</h3>
-                            <div className="space-y-2">
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-rose-400 flex items-center gap-2"><ShieldAlert size={14} /> Procedural</span>
-                                    <span className="font-bold text-white">3</span>
-                                </div>
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-amber-400 flex items-center gap-2"><ShieldAlert size={14} /> Material</span>
-                                    <span className="font-bold text-white">1</span>
-                                </div>
-                                <div className="h-1.5 w-full bg-dark-950 rounded-full mt-2 flex overflow-hidden">
-                                    <div className="h-full bg-rose-500 w-[75%]"></div>
-                                    <div className="h-full bg-amber-500 w-[25%]"></div>
-                                </div>
-                            </div>
-                        </div>
+      const data = await response.json();
+      setChatLog((prev) => [
+        ...prev,
+        {
+          role: "agent",
+          text: data.reply || "Systemfeil: " + (data.error || "Ingen respons"),
+        },
+      ]);
+    } catch {
+      setChatLog((prev) => [
+        ...prev,
+        { role: "agent", text: "Nettverksfeil: Klarte ikke kontakte serveren." },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-                        <div className="glass-panel w-72 p-4 rounded-xl border border-white/5 bg-dark-900/60 backdrop-blur-md">
-                            <h3 className="text-xs font-mono text-slate-400 uppercase tracking-widest mb-3">Jurisdiction Analysis</h3>
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-                                    <span className="text-emerald-500 font-bold">OK</span>
-                                </div>
-                                <div>
-                                    <div className="text-sm font-bold text-white">Local Authority Confirmed</div>
-                                    <div className="text-[10px] text-slate-500">§ 1-2 Child Welfare Act</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+  const t1 = defects.filter((d) => d.tier === "T1").length;
+  const t2plus = defects.filter((d) => d.tier !== "T1").length;
+  const totalBar = t1 + t2plus || 1;
 
-                    {/* Simulated Graph Grid Background */}
-                    <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:30px_30px] opacity-30" />
-
-                    {/* Simulated Graph Elements */}
-                    <div className="relative z-10 w-full h-full flex items-center justify-center">
-
-                        {/* Infection Path Simulation */}
-                        <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                            <path d="M 300 300 C 400 300, 450 450, 600 450" fill="none" stroke="#f43f5e" strokeWidth="2" strokeDasharray="4 4" className="animate-pulse" />
-                            <path d="M 600 450 C 700 450, 750 300, 900 300" fill="none" stroke="#f59e0b" strokeWidth="2" strokeDasharray="4 4" />
-                        </svg>
-
-                        <div className="absolute top-[280px] left-[250px] glass-panel p-3 rounded-lg border-rose-500/50 w-48 shadow-[0_0_15px_rgba(244,63,94,0.2)]">
-                            <div className="text-[10px] font-mono text-rose-400 mb-1 flex items-center gap-1"><ShieldAlert size={10} /> DEFECT ORIGIN</div>
-                            <div className="text-sm font-bold text-white">Stage A: Undersøkelse</div>
-                        </div>
-
-                        <div className="absolute top-[430px] left-[550px] glass-panel p-3 rounded-lg border-amber-500/50 w-48 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
-                            <div className="text-[10px] font-mono text-amber-400 mb-1">INFECTED NODE</div>
-                            <div className="text-sm font-bold text-white">Stage C: Akuttvedtak</div>
-                        </div>
-
-                        <div className="absolute top-[280px] left-[850px] glass-panel p-3 rounded-lg border-slate-700 w-48">
-                            <div className="text-[10px] font-mono text-slate-400 mb-1">TARGET NODE</div>
-                            <div className="text-sm font-bold text-slate-300">Stage G: Tingrett</div>
-                        </div>
-
-                    </div>
-
-                    <div className="absolute bottom-4 left-4 glass-panel px-3 py-2 rounded text-xs text-slate-400 font-mono">
-                        View: Topological Lattice | Scope: Global Causal Links
-                    </div>
-                </div>
-
-                {/* Right Pane: The Action Forge (Vertex AI Chat) */}
-                <div className="w-[400px] border-l border-white/10 bg-dark-800 flex flex-col shrink-0">
-                    <div className="p-4 border-b border-white/10 flex items-center gap-3 bg-dark-900/50">
-                        <div className="w-8 h-8 rounded-full bg-brand-500/20 flex items-center justify-center text-brand-500 border border-brand-500/30">
-                            <Bot size={18} />
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-sm text-white">The Action Forge</h3>
-                            <p className="text-[10px] text-brand-400 font-mono uppercase">Neural Core Linked</p>
-                        </div>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4 font-sans text-sm leading-relaxed">
-                        {chatLog.map((msg, i) => (
-                            <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                                <div className={`p-3 rounded-xl max-w-[90%] ${msg.role === 'user' ? 'bg-brand-600 text-white shadow-md' : 'bg-white/5 text-slate-300 border border-white/10'}`}>
-                                    {msg.text.split('\n').map((line, j) => (
-                                        <span key={j}>{line}<br /></span>
-                                    ))}
-                                </div>
-                            </div>
-                        ))}
-                        {isLoading && (
-                            <div className="flex flex-col items-start">
-                                <div className="p-3 rounded-xl bg-white/5 text-slate-400 border border-white/10 italic text-xs animate-pulse">
-                                    Neural Core analyserer...
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    <form onSubmit={handleSendMessage} className="p-4 border-t border-white/10 bg-dark-900/50">
-                        <div className="relative flex items-center">
-                            <input
-                                type="text"
-                                value={chatMessage}
-                                onChange={(e) => setChatMessage(e.target.value)}
-                                disabled={isLoading}
-                                placeholder={isLoading ? "Venter på svar..." : "Command Vertex AI..."}
-                                className="w-full bg-black/40 border border-white/10 rounded-lg pl-3 pr-10 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-brand-500 transition-colors disabled:opacity-50"
-                            />
-                            <button
-                                type="submit"
-                                title="Send message"
-                                disabled={!chatMessage.trim() || isLoading}
-                                className="absolute right-2 p-1.5 rounded-md text-brand-500 hover:bg-brand-500/20 disabled:opacity-50 transition-colors"
-                            >
-                                <Send size={16} />
-                            </button>
-                        </div>
-                    </form>
-                </div>
-
-            </div>
+  return (
+    <div className="h-full flex flex-col bg-dark-900 text-slate-200 font-sans overflow-hidden">
+      {/* Header */}
+      <header className="h-14 border-b border-white/10 flex items-center justify-between px-4 bg-dark-800 shrink-0">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-brand-500 font-bold bg-brand-900/40 px-3 py-1 rounded border border-brand-500/20">
+            <Network size={16} />
+            Kausalitetskjede
+          </div>
+          {caseId && <span className="text-xs font-mono text-slate-500">{caseId}</span>}
         </div>
-    );
+        <div className="text-xs text-slate-500 font-mono">
+          {nodes.length} noder · {edges.length} kanter · {defects.length} feil
+        </div>
+      </header>
+
+      {!caseId ? (
+        <div className="flex-1 flex items-center justify-center text-slate-400">
+          <p>
+            Velg en sak fra{" "}
+            <a href="/cases" className="text-brand-400 underline">
+              Saksoversikt
+            </a>{" "}
+            for å bruke Workbench.
+          </p>
+        </div>
+      ) : (
+        <div className="flex-1 flex overflow-hidden">
+          {/* Left: defects + nodes */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Summary bar */}
+            <div className="flex gap-4 p-4 border-b border-white/5 shrink-0">
+              <div className="glass-panel px-4 py-3 rounded-lg flex items-center gap-3 flex-1">
+                <ShieldAlert size={16} className="text-rose-400" />
+                <div>
+                  <div className="text-xs text-slate-500 uppercase tracking-wider">Kritiske feil (T1)</div>
+                  <div className="text-xl font-bold text-rose-400">{t1}</div>
+                </div>
+              </div>
+              <div className="glass-panel px-4 py-3 rounded-lg flex items-center gap-3 flex-1">
+                <AlertTriangle size={16} className="text-amber-400" />
+                <div>
+                  <div className="text-xs text-slate-500 uppercase tracking-wider">Moderate feil (T2/T3)</div>
+                  <div className="text-xl font-bold text-amber-400">{t2plus}</div>
+                </div>
+              </div>
+              <div className="glass-panel px-4 py-3 rounded-lg flex items-center gap-3 flex-1">
+                <GitBranch size={16} className="text-brand-400" />
+                <div>
+                  <div className="text-xs text-slate-500 uppercase tracking-wider">Grafkanter</div>
+                  <div className="text-xl font-bold text-brand-400">{edges.length}</div>
+                </div>
+              </div>
+              <div className="glass-panel px-4 py-3 rounded-lg flex items-center gap-3 flex-1">
+                <FileText size={16} className="text-emerald-400" />
+                <div>
+                  <div className="text-xs text-slate-500 uppercase tracking-wider">Grafnoder</div>
+                  <div className="text-xl font-bold text-emerald-400">{nodes.length}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Two-column: defects + nodes */}
+            <div className="flex-1 flex overflow-hidden">
+              {/* Defects */}
+              <div className="w-1/2 border-r border-white/5 overflow-y-auto p-4">
+                <h3 className="text-xs font-mono text-slate-400 uppercase tracking-widest mb-3">
+                  Registrerte feil ({defects.length})
+                </h3>
+                {graphLoading ? (
+                  <div className="flex items-center gap-2 text-slate-500 text-sm">
+                    <Loader2 size={14} className="animate-spin" /> Laster...
+                  </div>
+                ) : defects.length === 0 ? (
+                  <p className="text-sm text-slate-500">
+                    Ingen feil funnet. Kjør regelmotor fra{" "}
+                    <a
+                      href={`/portal?caseId=${encodeURIComponent(caseId)}`}
+                      className="text-brand-400 underline"
+                    >
+                      Nexus Tidslinje
+                    </a>{" "}
+                    først.
+                  </p>
+                ) : (
+                  <>
+                    <div className="space-y-3">
+                      {defects.map((d) => (
+                        <div
+                          key={d.defect_id}
+                          className={`p-3 rounded-lg border text-sm ${
+                            d.tier === "T1"
+                              ? "bg-rose-500/10 border-rose-500/20"
+                              : "bg-amber-500/10 border-amber-500/20"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <span
+                              className={`font-semibold ${
+                                d.tier === "T1" ? "text-rose-400" : "text-amber-400"
+                              }`}
+                            >
+                              {d.title}
+                            </span>
+                            <span className="text-xs font-mono text-slate-500 shrink-0">{d.tier}</span>
+                          </div>
+                          <p className="text-xs text-slate-400 leading-relaxed">{d.description}</p>
+                          <div className="mt-2 flex gap-2 flex-wrap">
+                            {d.stage_nb && (
+                              <span className="px-2 py-0.5 bg-black/30 text-xs text-slate-500 rounded border border-white/5">
+                                {d.stage_nb}
+                              </span>
+                            )}
+                            <span className="px-2 py-0.5 bg-black/30 text-xs text-slate-500 rounded border border-white/5">
+                              {d.category_nb}
+                            </span>
+                            <span className="text-xs text-slate-600">
+                              {Math.round(d.confidence * 100)}% konfidensgrad
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4">
+                      <div className="text-xs text-slate-500 mb-1">Fordeling</div>
+                      <div className="h-2 w-full bg-dark-950 rounded-full flex overflow-hidden">
+                        <div
+                          className="h-full bg-rose-500"
+                          style={{ width: `${(t1 / totalBar) * 100}%` }}
+                        />
+                        <div
+                          className="h-full bg-amber-500"
+                          style={{ width: `${(t2plus / totalBar) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Nodes */}
+              <div className="w-1/2 overflow-y-auto p-4">
+                <h3 className="text-xs font-mono text-slate-400 uppercase tracking-widest mb-3">
+                  Grafnoder ({nodes.length})
+                </h3>
+                {graphLoading ? (
+                  <div className="flex items-center gap-2 text-slate-500 text-sm">
+                    <Loader2 size={14} className="animate-spin" /> Laster...
+                  </div>
+                ) : nodes.length === 0 ? (
+                  <p className="text-sm text-slate-500">
+                    Ingen grafnoder. Last opp et dokument via Ingest.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {nodes.map((n) => (
+                      <div
+                        key={n.id}
+                        className="flex items-start gap-3 p-2 rounded-lg border border-white/5 hover:border-white/10 transition-colors"
+                      >
+                        <div
+                          className={`mt-1 w-2 h-2 rounded-full shrink-0 ${
+                            n.type === "DEFECT"
+                              ? "bg-rose-500"
+                              : n.type === "CLAIM"
+                              ? "bg-brand-500"
+                              : n.type === "DECISION"
+                              ? "bg-amber-500"
+                              : "bg-slate-500"
+                          }`}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-bold text-slate-300 truncate">{n.label}</div>
+                          <div className="text-[10px] text-slate-500 mt-0.5 font-mono flex gap-2">
+                            <span>{n.type_nb}</span>
+                            {n.stage && <span>· Stage {n.stage}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Chat */}
+          <div className="w-[380px] border-l border-white/10 bg-dark-800 flex flex-col shrink-0">
+            <div className="p-4 border-b border-white/10 flex items-center gap-3 bg-dark-900/50">
+              <div className="w-8 h-8 rounded-full bg-brand-500/20 flex items-center justify-center text-brand-500 border border-brand-500/30">
+                <Bot size={18} />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-white">Neural Core</h3>
+                <p className="text-[10px] text-brand-400 font-mono uppercase">
+                  {caseId ? "Saksdata lastet" : "Ingen sak valgt"}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 text-sm leading-relaxed">
+              {chatLog.map((msg, i) => (
+                <div
+                  key={i}
+                  className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
+                >
+                  <div
+                    className={`p-3 rounded-xl max-w-[90%] whitespace-pre-wrap ${
+                      msg.role === "user"
+                        ? "bg-brand-600 text-white shadow-md"
+                        : "bg-white/5 text-slate-300 border border-white/10"
+                    }`}
+                  >
+                    {msg.text}
+                  </div>
+                </div>
+              ))}
+              {isLoading && (
+                <div className="flex items-start">
+                  <div className="p-3 rounded-xl bg-white/5 text-slate-400 border border-white/10 italic text-xs flex items-center gap-2">
+                    <Loader2 size={12} className="animate-spin" /> Neural Core analyserer...
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <form onSubmit={handleSendMessage} className="p-4 border-t border-white/10 bg-dark-900/50">
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  value={chatMessage}
+                  onChange={(e) => setChatMessage(e.target.value)}
+                  disabled={isLoading}
+                  placeholder={
+                    !caseId
+                      ? "Velg en sak først..."
+                      : isLoading
+                      ? "Venter på svar..."
+                      : "Spør om saken, funn eller lovhjemler..."
+                  }
+                  className="w-full bg-black/40 border border-white/10 rounded-lg pl-3 pr-10 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-brand-500 transition-colors disabled:opacity-50"
+                />
+                <button
+                  type="submit"
+                  disabled={!chatMessage.trim() || isLoading || !caseId}
+                  className="absolute right-2 p-1.5 rounded-md text-brand-500 hover:bg-brand-500/20 disabled:opacity-30 transition-colors"
+                >
+                  <Send size={16} />
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function Workbench() {
+  return (
+    <Suspense
+      fallback={
+        <div className="h-full flex items-center justify-center text-slate-400">
+          <Loader2 size={24} className="animate-spin mr-3" /> Laster...
+        </div>
+      }
+    >
+      <WorkbenchContent />
+    </Suspense>
+  );
 }

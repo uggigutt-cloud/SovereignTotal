@@ -57,8 +57,48 @@ function PortalContent() {
   }, [caseId]);
 
   useEffect(() => {
-    fetchFindings();
-  }, [fetchFindings]);
+    // Fetch findings first; if no run exists yet, auto-trigger the rule engine
+    const loadAndAutoRun = async () => {
+      if (!caseId) return;
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`/api/findings?caseId=${encodeURIComponent(caseId)}`);
+        const json = await res.json();
+        if (json.success) {
+          if (json.latestRunId === null) {
+            // No analysis run yet — run automatically
+            setRunning(true);
+            try {
+              const r2 = await fetch("/api/rules", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ caseId }),
+              });
+              const j2 = await r2.json();
+              if (!j2.success) setError(j2.error || "Feil ved kjøring av regelmotor");
+            } finally {
+              setRunning(false);
+            }
+            // Re-fetch after auto-run
+            const res3 = await fetch(`/api/findings?caseId=${encodeURIComponent(caseId)}`);
+            const j3 = await res3.json();
+            if (j3.success) setData(j3);
+            else setError(j3.error || "Feil ved henting av analysedata");
+          } else {
+            setData(json);
+          }
+        } else {
+          setError(json.error || "Feil ved henting av analysedata");
+        }
+      } catch {
+        setError("Nettverksfeil");
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadAndAutoRun();
+  }, [caseId]);
 
   const runAnalysis = async () => {
     if (!caseId) return;
